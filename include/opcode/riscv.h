@@ -52,7 +52,7 @@ static inline unsigned int riscv_insn_length (insn_t insn)
 #define RVC_BRANCH_BITS 8
 #define RVC_BRANCH_REACH ((1ULL << RVC_BRANCH_BITS) * RISCV_BRANCH_ALIGN)
 
-#define RV_X(x, s, n)  (((x) >> (s)) & ((1 << (n)) - 1))
+#define RV_X(x, s, n)  (((x) >> (s)) & ((1L << (n)) - 1L))
 #define RV_IMM_SIGN(x) (-(((x) >> 31) & 1))
 #define RV_X_SIGNED(x, s, n) (RV_X(x, s, n) | ((-(RV_X(x, (s + n - 1), 1))) << (n)))
 #define RV_IMM_SIGN_N(x, s, n) (-(((x) >> ((s) + (n) - 1)) & 1))
@@ -141,6 +141,9 @@ static inline unsigned int riscv_insn_length (insn_t insn)
   ((RV_X(x, 25, 2) << 5) | (RV_X(x, 9, 3) << 2))
 #define EXTRACT_MIPS_SDP_IMM(x) \
   ((RV_X(x, 25, 2) << 5) | (RV_X(x, 10, 2) << 3))
+/* Zclli extract macros.  */
+#define EXTRACT_CL_LI_IMM(x) \
+  (RV_X(x, 16, 32))
 
 #define ENCODE_ITYPE_IMM(x) \
   (RV_X(x, 0, 12) << 20)
@@ -218,6 +221,9 @@ static inline unsigned int riscv_insn_length (insn_t insn)
   ((RV_X(x, 5, 2) << 25) | (RV_X(x, 2, 3) << 9))
 #define ENCODE_MIPS_SDP_IMM(x) \
   ((RV_X(x, 5, 2) << 25) | (RV_X(x, 3, 2) << 10))
+/* Zclli encode macros.  */
+#define ENCODE_CL_LI_IMM(x) \
+  (RV_X(x, 0, 32) << 16)
 
 #define VALID_ITYPE_IMM(x) (EXTRACT_ITYPE_IMM(ENCODE_ITYPE_IMM(x)) == (x))
 #define VALID_STYPE_IMM(x) (EXTRACT_STYPE_IMM(ENCODE_STYPE_IMM(x)) == (x))
@@ -246,6 +252,7 @@ static inline unsigned int riscv_insn_length (insn_t insn)
 #define VALID_ZCB_BYTE_UIMM(x) (EXTRACT_ZCB_BYTE_UIMM(ENCODE_ZCB_BYTE_UIMM(x)) == (x))
 #define VALID_ZCB_HALFWORD_UIMM(x) (EXTRACT_ZCB_HALFWORD_UIMM(ENCODE_ZCB_HALFWORD_UIMM(x)) == (x))
 #define VALID_ZCMP_SPIMM(x) (EXTRACT_ZCMP_SPIMM(ENCODE_ZCMP_SPIMM(x)) == (x))
+#define VALID_CL_LI_IMM(x) (EXTRACT_CL_LI_IMM(ENCODE_CL_LI_IMM(x)) == (x))
 
 #define RISCV_RTYPE(insn, rd, rs1, rs2) \
   ((MATCH_ ## insn) | ((rd) << OP_SH_RD) | ((rs1) << OP_SH_RS1) | ((rs2) << OP_SH_RS2))
@@ -562,6 +569,7 @@ enum riscv_insn_class
   INSN_CLASS_ZCMOP,
   INSN_CLASS_ZCMP,
   INSN_CLASS_ZCMT,
+  INSN_CLASS_ZCLLI,
   INSN_CLASS_SMCTR_OR_SSCTR,
   INSN_CLASS_ZILSD,
   INSN_CLASS_ZCLSD,

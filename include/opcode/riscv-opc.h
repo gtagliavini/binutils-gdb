@@ -3823,6 +3823,9 @@
 #define MASK_MIPS_PAUSE  0xffffffff
 #define MATCH_MIPS_PREF 0x0000000b
 #define MASK_MIPS_PREF 0xe000707f
+/* Zclli instructions. */
+#define MATCH_CL_LI 0x00000000001f
+#define MASK_CL_LI  0x00000000f07f
 /* Unprivileged Counter/Timers CSR addresses.  */
 #define CSR_CYCLE 0xc00
 #define CSR_TIME 0xc01
@@ -4978,6 +4981,8 @@ DECLARE_INSN(mips_ehb, MATCH_MIPS_EHB, MASK_MIPS_EHB)
 DECLARE_INSN(mips_ihb, MATCH_MIPS_IHB, MASK_MIPS_IHB)
 DECLARE_INSN(mips_pause, MATCH_MIPS_PAUSE, MASK_MIPS_PAUSE)
 DECLARE_INSN(mips_pref, MATCH_MIPS_PREF, MASK_MIPS_PREF)
+/* Zclli instructions. */
+DECLARE_INSN(cl_li, MATCH_CL_LI, MASK_CL_LI)
 #endif /* DECLARE_INSN */
 #ifdef DECLARE_CSR
 /* Unprivileged Counter/Timers CSRs.  */

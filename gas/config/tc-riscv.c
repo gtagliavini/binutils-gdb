@@ -1775,6 +1775,9 @@ validate_riscv_insn (const struct riscv_opcode *opc, int length)
 	      goto unknown_validate_operand;
 	    }
 	  break;
+	case 'J': /* Zclli immediate operand.  */
+	  used_bits |= ENCODE_CL_LI_IMM (-1ULL);
+	  break;
 	default:
 	unknown_validate_operand:
 	  as_bad (_("internal: bad RISC-V opcode "
@@ -4275,11 +4278,22 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		      goto unknown_riscv_ip_operand;
 		    }
 		  break;
-
 		default:
 		  goto unknown_riscv_ip_operand;
 		}
 	      break;
+
+	    case 'J': /* Zclli immediate operand.  */
+	      my_getExpression (imm_expr, asarg);
+	      check_absolute_expr (ip, imm_expr, FALSE);
+	      if (!VALID_CL_LI_IMM (imm_expr->X_add_number))
+	        as_bad (_("improper immediate value (%"PRIu64")"),
+	            imm_expr->X_add_number);
+	      ip->insn_opcode
+	          |= ENCODE_CL_LI_IMM (imm_expr->X_add_number);
+	      asarg = expr_parse_end;
+	      imm_expr->X_op = O_absent;
+	      continue;
 
 	    default:
 	    unknown_riscv_ip_operand:

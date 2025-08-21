@@ -1226,6 +1226,9 @@ const struct riscv_opcode riscv_opcodes[] =
 {"c.fswsp",   32, INSN_CLASS_ZCF, "CT,CM(Cc)", MATCH_C_FSWSP, MASK_C_FSWSP, match_opcode, INSN_DREF|INSN_4_BYTE },
 {"c.fsw",     32, INSN_CLASS_ZCF, "CD,Ck(Cs)", MATCH_C_FSW, MASK_C_FSW, match_opcode, INSN_DREF|INSN_4_BYTE },
 
+/* Zclli instructions.  */
+{"cl.li",      0, INSN_CLASS_ZCLLI, "d,J", MATCH_CL_LI, MASK_CL_LI, match_opcode, 0 },
+
 /* Zicbom and Zicboz instructions.  */
 {"cbo.clean",  0, INSN_CLASS_ZICBOM, "0(s)", MATCH_CBO_CLEAN, MASK_CBO_CLEAN, match_opcode, 0 },
 {"cbo.flush",  0, INSN_CLASS_ZICBOM, "0(s)", MATCH_CBO_FLUSH, MASK_CBO_FLUSH, match_opcode, 0 },

@@ -922,6 +922,11 @@ print_insn_args (const char *oparg, insn_t l, bfd_vma pc, disassemble_info *info
 	    }
 	  break;
 
+	case 'J': /* Zclli immediate operand.  */
+	  print (info->stream, dis_style_immediate, "%d",
+	  ((int) EXTRACT_CL_LI_IMM (l)));
+	  break;
+
 	default:
 	undefined_modifier:
 	  /* xgettext:c-format */

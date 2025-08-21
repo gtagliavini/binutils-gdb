@@ -1547,6 +1547,7 @@ static struct riscv_supported_ext riscv_supported_std_z_ext[] =
   {"zcmp",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
   {"zcmt",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
   {"zclsd",		ISA_SPEC_CLASS_DRAFT,		1, 0,  0 },
+  {"zclli",             ISA_SPEC_CLASS_DRAFT,           0, 1,  0 },
   {NULL, 0, 0, 0, 0}
 };
 
@@ -2977,6 +2978,8 @@ riscv_multi_subset_supports (riscv_parse_subset_t *rps,
       return riscv_subset_supports (rps, "zcmp");
     case INSN_CLASS_ZCMT:
       return riscv_subset_supports (rps, "zcmt");
+    case INSN_CLASS_ZCLLI:
+      return riscv_subset_supports (rps, "zclli");
     case INSN_CLASS_SMCTR_OR_SSCTR:
       return (riscv_subset_supports (rps, "smctr")
 	      || riscv_subset_supports (rps, "ssctr"));
