@@ -252,7 +252,7 @@ static inline unsigned int riscv_insn_length (insn_t insn)
 #define VALID_ZCB_BYTE_UIMM(x) (EXTRACT_ZCB_BYTE_UIMM(ENCODE_ZCB_BYTE_UIMM(x)) == (x))
 #define VALID_ZCB_HALFWORD_UIMM(x) (EXTRACT_ZCB_HALFWORD_UIMM(ENCODE_ZCB_HALFWORD_UIMM(x)) == (x))
 #define VALID_ZCMP_SPIMM(x) (EXTRACT_ZCMP_SPIMM(ENCODE_ZCMP_SPIMM(x)) == (x))
-#define VALID_CL_LI_IMM(x) (EXTRACT_CL_LI_IMM(ENCODE_CL_LI_IMM(x)) == (x))
+#define VALID_CL_LI_IMM(x) ((EXTRACT_CL_LI_IMM(ENCODE_CL_LI_IMM(x)) && 0xFFFFF) == (x && 0xFFFFF))
 
 #define RISCV_RTYPE(insn, rd, rs1, rs2) \
   ((MATCH_ ## insn) | ((rd) << OP_SH_RD) | ((rs1) << OP_SH_RS1) | ((rs2) << OP_SH_RS2))

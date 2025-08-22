@@ -4287,7 +4287,7 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 	      my_getExpression (imm_expr, asarg);
 	      check_absolute_expr (ip, imm_expr, FALSE);
 	      if (!VALID_CL_LI_IMM (imm_expr->X_add_number))
-	        as_bad (_("improper immediate value (%"PRIu64")"),
+	        as_bad (_("improper immediate value (%"PRId64")"),
 	            imm_expr->X_add_number);
 	      ip->insn_opcode
 	          |= ENCODE_CL_LI_IMM (imm_expr->X_add_number);
