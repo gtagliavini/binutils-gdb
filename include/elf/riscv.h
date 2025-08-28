@@ -95,6 +95,7 @@ START_RELOC_NUMBERS (elf_riscv_reloc_type)
   RELOC_NUMBER (R_RISCV_TLSDESC_LOAD_LO12, 63)
   RELOC_NUMBER (R_RISCV_TLSDESC_ADD_LO12, 64)
   RELOC_NUMBER (R_RISCV_TLSDESC_CALL, 65)
+  RELOC_NUMBER (R_RISCV_CLLI32, 66)
 END_RELOC_NUMBERS (R_RISCV_max)
 
 /* Internal relocations used exclusively by the relaxation pass.  */
@@ -139,6 +140,9 @@ END_RELOC_NUMBERS (R_RISCV_max)
 
 /* File uses the TSO model. */
 #define EF_RISCV_TSO 0x0010
+
+/* File may include cl.li instructions.  */
+#define EF_RISCV_ZCLLI 0x00100
 
 /* Additional section types.  */
 #define SHT_RISCV_ATTRIBUTES (SHT_LOPROC + 3) /* Section holds attributes.  */

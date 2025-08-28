@@ -996,6 +996,62 @@ bfd_putl64 (uint64_t data, void *p)
   addr[0] = (data >> (0*8)) & 0xff;
 }
 
+uint64_t
+bfd_getb48 (const void *p)
+{
+  const bfd_byte *addr = (const bfd_byte *) p;
+  uint64_t v = 0;
+
+  v  = addr[0]; v <<= 8;
+  v |= addr[1]; v <<= 8;
+  v |= addr[2]; v <<= 8;
+  v |= addr[3]; v <<= 8;
+  v |= addr[4]; v <<= 8;
+  v |= addr[5];
+
+  return v;
+}
+
+uint64_t
+bfd_getl48 (const void *p)
+{
+  const bfd_byte *addr = (const bfd_byte *) p;
+  uint64_t v = 0;
+
+  v |= addr[5]; v <<= 8;
+  v |= addr[4]; v <<= 8;
+  v |= addr[3]; v <<= 8;
+  v |= addr[2]; v <<= 8;
+  v |= addr[1]; v <<= 8;
+  v |= addr[0];
+
+  return v;
+}
+
+void
+bfd_putb48 (uint64_t data, void *p)
+{
+  bfd_byte *addr = (bfd_byte *) p;
+  addr[0] = (data >> (5*8)) & 0xff;
+  addr[1] = (data >> (4*8)) & 0xff;
+  addr[2] = (data >> (3*8)) & 0xff;
+  addr[3] = (data >> (2*8)) & 0xff;
+  addr[4] = (data >> (1*8)) & 0xff;
+  addr[5] = (data >> (0*8)) & 0xff;
+}
+
+void
+bfd_putl48 (uint64_t data, void *p)
+{
+  bfd_byte *addr = (bfd_byte *) p;
+  addr[5] = (data >> (5*8)) & 0xff;
+  addr[4] = (data >> (4*8)) & 0xff;
+  addr[3] = (data >> (3*8)) & 0xff;
+  addr[2] = (data >> (2*8)) & 0xff;
+  addr[1] = (data >> (1*8)) & 0xff;
+  addr[0] = (data >> (0*8)) & 0xff;
+}
+
 void
 bfd_put_bits (uint64_t data, void *p, int bits, bool big_p)
 {

@@ -319,6 +319,10 @@ void bfd_putb24 (bfd_vma, void *);
 void bfd_putl24 (bfd_vma, void *);
 void bfd_putb16 (bfd_vma, void *);
 void bfd_putl16 (bfd_vma, void *);
+uint64_t bfd_getb48 (const void *);
+uint64_t bfd_getl48 (const void *);
+void bfd_putb48 (uint64_t, void *);
+void bfd_putl48 (uint64_t, void *);
 uint64_t bfd_get_bits (const void *, int, bool);
 void bfd_put_bits (uint64_t, void *, int, bool);
 
@@ -5448,6 +5452,7 @@ enum bfd_reloc_code_real
   BFD_RELOC_RISCV_32_PCREL,
   BFD_RELOC_RISCV_SET_ULEB128,
   BFD_RELOC_RISCV_SUB_ULEB128,
+  BFD_RELOC_RISCV_CLLI32,
 
   /* Renesas RL78 Relocations.  */
   BFD_RELOC_RL78_NEG8,

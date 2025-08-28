@@ -876,6 +876,21 @@ static reloc_howto_type howto_table[] =
 	 false,				/* partial_inplace */
 	 0,				/* src_mask */
 	 ENCODE_ITYPE_IMM (-1U),	/* dst_mask */
+	 false), 			/* pcrel_offset */
+
+  /* Higher 32 bits of 48-bit instruction (absolute address).  */
+  HOWTO (R_RISCV_CLLI32,		/* type */
+	 0,				/* rightshift */
+	 6,				/* size */
+	 48,				/* bitsize */
+	 false,				/* pc_relative */
+	 0,				/* bitpos */
+	 complain_overflow_dont,	/* complain_on_overflow */
+	 bfd_elf_generic_reloc,		/* special_function */
+	 "R_RISCV_CLLI32",		/* name */
+	 false,				//* partial_inplace */
+	 0,				//* src_mask */
+	 ENCODE_CL_LI_IMM (-1U),	/* dst_mask */
 	 false) 			/* pcrel_offset */
 };
 
@@ -1020,6 +1035,7 @@ static const struct elf_reloc_map riscv_reloc_map[] =
   { BFD_RELOC_RISCV_32_PCREL, R_RISCV_32_PCREL },
   { BFD_RELOC_RISCV_SET_ULEB128, R_RISCV_SET_ULEB128 },
   { BFD_RELOC_RISCV_SUB_ULEB128, R_RISCV_SUB_ULEB128 },
+  { BFD_RELOC_RISCV_CLLI32, R_RISCV_CLLI32 },
 };
 
 struct riscv_profiles

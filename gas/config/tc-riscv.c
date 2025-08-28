@@ -429,6 +429,10 @@ riscv_set_abi_by_arch (void)
 
   if (rve_abi)
     elf_flags |= EF_RISCV_RVE;
+
+  /* Update the EF_RISCV_ZCLLI_field of elf_flags.  */
+	if (riscv_subset_supports (&riscv_rps_as, "zclli"))
+    elf_flags |= EF_RISCV_ZCLLI;
 }
 
 /* Handle of the OPCODE hash table.  */
@@ -4434,6 +4438,24 @@ md_assemble (char *str)
     macro (&insn, &imm_expr, &imm_reloc);
   else
     append_insn (&insn, &imm_expr, imm_reloc);
+
+  /* Reserve leading space for the cl.li 48-bit instruction relaxation.  */
+  if (imm_reloc == BFD_RELOC_RISCV_LO12_I &&
+	  riscv_subset_supports (&riscv_rps_as, "zclli") &&
+	  riscv_opts.relax)
+    {
+		expressionS exp;
+		fragS  *frag  = frag_now;
+		valueT  where = frag_now_fix ();
+		/* Reserve and write 4 bytes corresponding to a 32-bit NOP
+		   with encoding: 0x00000013 (addi x0,x0,0).  */
+		char *p = frag_more (4);
+		md_number_to_chars (p, (valueT)0x00000013u, 4);
+		memset (&exp, 0, sizeof exp);
+		exp.X_op = O_constant;
+		exp.X_add_number = 0;
+		fix_new_exp (frag, where, 0, &exp, 0, BFD_RELOC_RISCV_RELAX);
+	}
 }
 
 const char *

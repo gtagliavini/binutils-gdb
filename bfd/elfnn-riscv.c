@@ -252,11 +252,13 @@ struct riscv_elf_link_hash_table
 #define riscv_get_insn(bits, ptr)		\
   ((bits) == 16 ? bfd_getl16 (ptr)		\
    : (bits) == 32 ? bfd_getl32 (ptr)		\
+   : (bits) == 48 ? bfd_getl48 (ptr)		\
    : (bits) == 64 ? bfd_getl64 (ptr)		\
    : (abort (), (bfd_vma) - 1))
 #define riscv_put_insn(bits, val, ptr)		\
   ((bits) == 16 ? bfd_putl16 (val, ptr)		\
    : (bits) == 32 ? bfd_putl32 (val, ptr)	\
+   : (bits) == 48 ? bfd_putl48 (val, ptr)	\
    : (bits) == 64 ? bfd_putl64 (val, ptr)	\
    : (abort (), (void) 0))
 
@@ -310,6 +312,38 @@ riscv_is_insn_reloc (const reloc_howto_type *howto)
 	  && howto->dst_mask != 0
 	  && ~(howto->dst_mask | (howto->bitsize < sizeof(bfd_vma) * CHAR_BIT
 	       ? (MINUS_ONE << howto->bitsize) : (bfd_vma)0)) != 0);
+}
+
+/* Hasttable to keep track of CL.LI opportunities.  */
+static htab_t zclli_infos;
+
+/* Record of the zclli_infos hashtable.  */
+typedef struct
+{
+  /* Symbol value.  */
+  bfd_vma symval;
+  /* Relocation address.  */
+  Elf_Internal_Rela *rel;
+  /* Flag.  */
+  bool delete_request;
+  /* Destination register.  */
+  unsigned rd;
+} zclli_info_record;
+
+/* zclli_infos callback: Compute hash.  */
+static hashval_t
+zclli_hash_cb (const void *entry)
+{
+  const zclli_info_record *e = entry;
+  return (hashval_t)(e->symval);
+}
+
+/* zclli_infos callback: Check entry equality.  */
+static int
+zclli_eq_cb (const void *entry1, const void *entry2)
+{
+  const zclli_info_record *e1 = entry1, *e2 = entry2;
+  return e1->symval == e2->symval;
 }
 
 /* PLT/GOT stuff.  */
@@ -2016,6 +2050,11 @@ perform_relocation (const reloc_howto_type *howto,
       value = ENCODE_STYPE_IMM (value);
       break;
 
+    case R_RISCV_CLLI32:
+      /* Encode the immediate of teh CL.LI instruction.  */
+      value = ENCODE_CL_LI_IMM (value);
+      break;
+
     case R_RISCV_CALL:
     case R_RISCV_CALL_PLT:
       if (ARCH_SIZE > 32 && !VALID_UTYPE_IMM (RISCV_CONST_HIGH_PART (value)))
@@ -2791,6 +2830,7 @@ riscv_elf_relocate_section (bfd *output_bfd,
 	case R_RISCV_SET32:
 	case R_RISCV_32_PCREL:
 	case R_RISCV_DELETE:
+	case R_RISCV_CLLI32:
 	  /* These require no special handling beyond perform_relocation.  */
 	  break;
 
@@ -5043,7 +5083,7 @@ _bfd_riscv_relax_lui (bfd *abfd,
 	{
 	case R_RISCV_LO12_I:
 	  rel->r_info = ELFNN_R_INFO (sym, R_RISCV_GPREL_I);
-	  return true;
+	  goto out;
 
 	case R_RISCV_LO12_S:
 	  rel->r_info = ELFNN_R_INFO (sym, R_RISCV_GPREL_S);
@@ -5075,7 +5115,7 @@ _bfd_riscv_relax_lui (bfd *abfd,
       bfd_vma lui = bfd_getl32 (contents + rel->r_offset);
       unsigned rd = ((unsigned)lui >> OP_SH_RD) & OP_MASK_RD;
       if (rd == 0 || rd == X_SP)
-	return true;
+        goto clli_check;
 
       lui = (lui & (OP_MASK_RD << OP_SH_RD)) | MATCH_C_LUI;
       bfd_putl32 (lui, contents + rel->r_offset);
@@ -5089,6 +5129,77 @@ _bfd_riscv_relax_lui (bfd *abfd,
 				       link_info, pcgp_relocs, rel + 1);
     }
 
+clli_check:
+  if (elf_elfheader (abfd)->e_flags & EF_RISCV_ZCLLI)
+    {
+      /* Create the hashtable if ti does not exists.  */		
+      if (zclli_infos == NULL)
+        zclli_infos = htab_create (64, zclli_hash_cb, zclli_eq_cb, free);
+	  BFD_ASSERT (zclli_infos != NULL);
+
+	  /* Hashtable entry used in the next steps.  */
+	  zclli_info_record entry = {symval, rel, false, 0};
+
+	  /* Case 1: Managing a R_RISCV_HI20 relocation.  */
+      if (ELFNN_R_TYPE (rel->r_info) == R_RISCV_HI20)
+	    {
+          /* Look for tge record in the hastable and create it.  */
+		  zclli_info_record *record = htab_find (zclli_infos, &entry);
+		  if(record == NULL)
+		    {
+			  /* Get a new slot.  */			
+			  zclli_info_record **slot = (zclli_info_record **) htab_find_slot (zclli_infos, &entry, INSERT);
+			  BFD_ASSERT (*slot == NULL);
+			  /* Allocate space in the slot for a new entry.  */
+			  *slot = (zclli_info_record *) bfd_malloc (sizeof (zclli_info_record));
+			  BFD_ASSERT (*slot != NULL);
+			  /* Update the entry to keep track of the rd register. */
+			  bfd_vma lui = bfd_getl32 (contents + rel->r_offset);
+			  entry.rd = ((unsigned)lui >> OP_SH_RD) & OP_MASK_RD;
+			  /* Copy the updated entry into the slot. */
+			  **slot = entry;
+			  /* Reuse the R_RISCV_RELAX reloc.  */
+			  *again = true;
+			  return true;
+		    }
+		}
+      /* Case 2: Managing a R_RISCV_LO12_I relocation.  */
+      if (ELFNN_R_TYPE (rel->r_info) == R_RISCV_LO12_I)
+	    {
+		  // printf("symval = %lu (%lu)\n", symval, entry.symval);
+		  zclli_info_record *record = htab_find (zclli_infos, &entry);
+		  if (record)
+		    {
+		      bfd_vma addi = bfd_getl32 (contents + rel->r_offset);
+		      unsigned rd = ((unsigned)addi >> OP_SH_RD) & OP_MASK_RD;
+		      unsigned rs1 = ((unsigned)addi >> OP_SH_RS1) & OP_MASK_RS1;
+			  /* Coupled */
+			  if ((rd == rs1) && (rd == record->rd))
+			    {
+				  bfd_vma clli = (addi & (OP_MASK_RD << OP_SH_RD)) | MATCH_CL_LI;
+                  bfd_putl32 (clli, contents + rel->r_offset);
+                  record->delete_request = true;
+				  /* Replace the R_RISCV_LI12_I reloc.  */
+      			  rel->r_info = ELFNN_R_INFO (ELFNN_R_SYM (rel->r_info), R_RISCV_CLLI32);
+				  *again = true;
+				  /* Delete bytes for the associated R_RISCV_LO12_I reloc.  */
+				  if (!riscv_relax_delete_bytes (abfd, sec, record->rel->r_offset, 4,
+				         link_info, pcgp_relocs, record->rel))
+                    return false;
+                  /* Delete the last two bytes of the padding area. */
+                  return riscv_relax_delete_bytes (abfd, sec, (rel+1)->r_offset+2, 2,
+				       link_info, pcgp_relocs, rel+1);
+			    }
+			}
+		}
+    }
+
+out:
+  /* Remove the padding area associated to relaxations for CL_LI.  */
+  if (ELFNN_R_TYPE ((rel+1)->r_info) == R_RISCV_RELAX &&
+	  bfd_getl32 (contents + (rel+1)->r_offset) == 0x00000013u)
+    return riscv_relax_delete_bytes (abfd, sec, (rel+1)->r_offset, 4,
+	  			       link_info, pcgp_relocs, rel+1);	
   return true;
 }
 
