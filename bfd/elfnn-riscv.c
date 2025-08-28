@@ -324,8 +324,6 @@ typedef struct
   bfd_vma symval;
   /* Relocation address.  */
   Elf_Internal_Rela *rel;
-  /* Flag.  */
-  bool delete_request;
   /* Destination register.  */
   unsigned rd;
 } zclli_info_record;
@@ -5138,7 +5136,7 @@ clli_check:
 	  BFD_ASSERT (zclli_infos != NULL);
 
 	  /* Hashtable entry used in the next steps.  */
-	  zclli_info_record entry = {symval, rel, false, 0};
+	  zclli_info_record entry = {symval, rel, 0};
 
 	  /* Case 1: Managing a R_RISCV_HI20 relocation.  */
       if (ELFNN_R_TYPE (rel->r_info) == R_RISCV_HI20)
@@ -5170,16 +5168,20 @@ clli_check:
 		  zclli_info_record *record = htab_find (zclli_infos, &entry);
 		  if (record)
 		    {
+		      /* Check if it is an ADDI (skipping all load instruction).  */
 		      bfd_vma addi = bfd_getl32 (contents + rel->r_offset);
+			  if ((addi & (bfd_vma)MASK_ADDI) != (bfd_vma)MATCH_ADDI)
+			      return true;
+		      /* rd and rs1 registers must match with the corresponding
+			     R_RISCV_HI20 relocation.  */
 		      unsigned rd = ((unsigned)addi >> OP_SH_RD) & OP_MASK_RD;
 		      unsigned rs1 = ((unsigned)addi >> OP_SH_RS1) & OP_MASK_RS1;
-			  /* Coupled */
 			  if ((rd == rs1) && (rd == record->rd))
 			    {
+				  /* Modify the ADDI encoding into an CL.LI instruction.  */
 				  bfd_vma clli = (addi & (OP_MASK_RD << OP_SH_RD)) | MATCH_CL_LI;
                   bfd_putl32 (clli, contents + rel->r_offset);
-                  record->delete_request = true;
-				  /* Replace the R_RISCV_LI12_I reloc.  */
+				  /* Replace the R_RISCV_LI12_I relocation.  */
       			  rel->r_info = ELFNN_R_INFO (ELFNN_R_SYM (rel->r_info), R_RISCV_CLLI32);
 				  *again = true;
 				  /* Delete bytes for the associated R_RISCV_LO12_I reloc.  */
