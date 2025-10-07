@@ -4441,7 +4441,9 @@ md_assemble (char *str)
 
   /* Reserve leading space for the cl.li 48-bit instruction relaxation.  */
   bfd_boolean is_addi = ((insn.insn_opcode & (insn_t)MASK_ADDI) == (insn_t)MATCH_ADDI);
-  if (imm_reloc == BFD_RELOC_RISCV_LO12_I && is_addi &&
+  if (imm_reloc == BFD_RELOC_RISCV_LO12_I &&
+	  is_addi &&
+	  imm_expr.X_op != O_constant &&
 	  riscv_subset_supports (&riscv_rps_as, "zclli") &&
 	  riscv_opts.relax)
     {
