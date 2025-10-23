@@ -341,7 +341,7 @@ static int
 zclli_eq_cb (const void *entry1, const void *entry2)
 {
   const zclli_info_record *e1 = entry1, *e2 = entry2;
-  return e1->symval == e2->symval;
+  return (e1->symval == e2->symval);
 }
 
 /* PLT/GOT stuff.  */
@@ -5123,85 +5123,94 @@ _bfd_riscv_relax_lui (bfd *abfd,
 
       /* Delete extra bytes and reuse the R_RISCV_RELAX reloc.  */
       *again = true;
-      return riscv_relax_delete_bytes (abfd, sec, rel->r_offset + 2, 2,
+      bool res = riscv_relax_delete_bytes (abfd, sec, rel->r_offset + 2, 2,
 				       link_info, pcgp_relocs, rel + 1);
+
+      /* Return only if ZCLLI is not active.  */
+      if (!(elf_elfheader (abfd)->e_flags & EF_RISCV_ZCLLI))
+	    return res;
     }
 
 clli_check:
   if (elf_elfheader (abfd)->e_flags & EF_RISCV_ZCLLI)
     {
-      /* Create the hashtable if ti does not exists.  */		
+      /* Create the hashtable if it does not exists.  */
       if (zclli_infos == NULL)
         zclli_infos = htab_create (64, zclli_hash_cb, zclli_eq_cb, free);
-	  BFD_ASSERT (zclli_infos != NULL);
+      BFD_ASSERT (zclli_infos != NULL);
 
-	  /* Hashtable entry used in the next steps.  */
-	  zclli_info_record entry = {symval, rel, 0};
+      /* Hashtable entry used in the next steps.  */
+      zclli_info_record entry = {symval, rel, 0};
 
-	  /* Case 1: Managing a R_RISCV_HI20 relocation.  */
-      if (ELFNN_R_TYPE (rel->r_info) == R_RISCV_HI20)
-	    {
-          /* Look for tge record in the hastable and create it.  */
-		  zclli_info_record *record = htab_find (zclli_infos, &entry);
-		  if(record == NULL)
-		    {
-			  /* Get a new slot.  */			
-			  zclli_info_record **slot = (zclli_info_record **) htab_find_slot (zclli_infos, &entry, INSERT);
-			  BFD_ASSERT (*slot == NULL);
-			  /* Allocate space in the slot for a new entry.  */
-			  *slot = (zclli_info_record *) bfd_malloc (sizeof (zclli_info_record));
-			  BFD_ASSERT (*slot != NULL);
-			  /* Update the entry to keep track of the rd register. */
-			  bfd_vma lui = bfd_getl32 (contents + rel->r_offset);
-			  entry.rd = ((unsigned)lui >> OP_SH_RD) & OP_MASK_RD;
-			  /* Copy the updated entry into the slot. */
-			  **slot = entry;
-			  /* Reuse the R_RISCV_RELAX reloc.  */
-			  *again = true;
-			  return true;
-		    }
-		}
-      /* Case 2: Managing a R_RISCV_LO12_I relocation.  */
-      if (ELFNN_R_TYPE (rel->r_info) == R_RISCV_LO12_I)
-	    {
-		  // printf("symval = %lu (%lu)\n", symval, entry.symval);
-		  zclli_info_record *record = htab_find (zclli_infos, &entry);
-		  if (record)
-		    {
-		      /* Check if it is an ADDI (skipping all load instruction).  */
-		      bfd_vma addi = bfd_getl32 (contents + rel->r_offset);
-			  if ((addi & (bfd_vma)MASK_ADDI) != (bfd_vma)MATCH_ADDI)
-			      return true;
-		      /* rd and rs1 registers must match with the corresponding
-			     R_RISCV_HI20 relocation.  */
-		      unsigned rd = ((unsigned)addi >> OP_SH_RD) & OP_MASK_RD;
-		      unsigned rs1 = ((unsigned)addi >> OP_SH_RS1) & OP_MASK_RS1;
-			  if ((rd == rs1) && (rd == record->rd))
-			    {
-				  /* Modify the ADDI encoding into an CL.LI instruction.  */
-				  bfd_vma clli = (addi & (OP_MASK_RD << OP_SH_RD)) | MATCH_CL_LI;
-                  bfd_putl32 (clli, contents + rel->r_offset);
-				  /* Replace the R_RISCV_LI12_I relocation.  */
-      			  rel->r_info = ELFNN_R_INFO (ELFNN_R_SYM (rel->r_info), R_RISCV_CLLI32);
-				  *again = true;
-				  /* Delete bytes for the associated R_RISCV_LO12_I reloc.  */
-				  if (!riscv_relax_delete_bytes (abfd, sec, record->rel->r_offset, 4,
-				         link_info, pcgp_relocs, record->rel))
-                    return false;
-                  /* Delete the last two bytes of the padding area. */
-                  return riscv_relax_delete_bytes (abfd, sec, (rel+1)->r_offset+2, 2,
-				       link_info, pcgp_relocs, rel+1);
-			    }
-			}
-		}
-    }
+      /* Case 1: Managing a R_RISCV_HI20 relocation.  */
+      if (ELFNN_R_TYPE (rel->r_info) == R_RISCV_HI20 || ELFNN_R_TYPE (rel->r_info) == R_RISCV_RVC_LUI)
+        {
+          /* Look for the record in the hastable and create it.  */
+          zclli_info_record *record = htab_find (zclli_infos, &entry);
+          if(record == NULL)
+            {
+              /* Get a new slot.  */			
+              zclli_info_record **slot = (zclli_info_record **) htab_find_slot (zclli_infos, &entry, INSERT);
+              BFD_ASSERT (*slot == NULL);
+              /* Allocate space in the slot for a new entry.  */
+              *slot = (zclli_info_record *) bfd_malloc (sizeof (zclli_info_record));
+              BFD_ASSERT (*slot != NULL);
+              /* Update the entry to keep track of the rd register. */
+              bfd_vma lui = bfd_getl32 (contents + rel->r_offset);
+              entry.rd = ((unsigned)lui >> OP_SH_RD) & OP_MASK_RD;
+              /* Copy the updated entry into the slot. */
+              **slot = entry;
+              /* Reuse the R_RISCV_RELAX reloc.  */
+              *again = true;
+              return true;
+            }
+        }
+        /* Case 2: Managing a R_RISCV_LO12_I relocation.  */
+        if (ELFNN_R_TYPE (rel->r_info) == R_RISCV_LO12_I)
+          {
+            //printf("symval = %lu (%lu)\n", symval, entry.symval);
+            zclli_info_record *record = htab_find (zclli_infos, &entry);
+            if (record)
+              {
+                /* Check if it is an ADDI (skipping all load instruction).  */
+                bfd_vma addi = bfd_getl32 (contents + rel->r_offset);
+                if ((addi & (bfd_vma)MASK_ADDI) != (bfd_vma)MATCH_ADDI)
+                   return true;
+                /* rd and rs1 registers must match with the corresponding
+                   R_RISCV_HI20 relocation.  */
+                bool is_lui_compressed = ((bfd_getl32 (contents + record->rel->r_offset) & 0x3u) != 0x3u);
+                unsigned rd = ((unsigned)addi >> OP_SH_RD) & OP_MASK_RD;
+                unsigned rs1 = ((unsigned)addi >> OP_SH_RS1) & OP_MASK_RS1;
+                if ((rd == rs1) && (rd == record->rd))
+                  {
+                    /* Modify the ADDI encoding into an CL.LI instruction.  */
+                    bfd_vma clli = (addi & (OP_MASK_RD << OP_SH_RD)) | MATCH_CL_LI;
+                    bfd_putl32 (clli, contents + rel->r_offset);
+                    /* Replace the R_RISCV_LI12_I relocation.  */
+                    rel->r_info = ELFNN_R_INFO (ELFNN_R_SYM (rel->r_info), R_RISCV_CLLI32);
+                    *again = true;
+                    /* Delete bytes for the associated R_RISCV_HI20 reloc.  */
+                    size_t bytes = is_lui_compressed? 2: 4;
+                    if (!riscv_relax_delete_bytes (abfd, sec, record->rel->r_offset, bytes,
+                                                   link_info, pcgp_relocs, record->rel))
+                      return false;
+                    /* Delete the last two bytes of the padding area. */
+                    if ((addi & 0x3u) == 0x3u)
+                      return riscv_relax_delete_bytes (abfd, sec, (rel+1)->r_offset+2, 2,
+                                                       link_info, pcgp_relocs, rel+1);
+                    else
+                      return true;
+                  }
+              }
+          }
+     }
 
 out:
   /* Remove the padding area associated to relaxations for CL_LI.  */
-  if (ELFNN_R_TYPE ((rel+1)->r_info) == R_RISCV_RELAX &&
-	  bfd_getl32 (contents + (rel+1)->r_offset) == 0x00000013u)
-    return riscv_relax_delete_bytes (abfd, sec, (rel+1)->r_offset, 4,
-	  			       link_info, pcgp_relocs, rel+1);	
+  if (ELFNN_R_TYPE ((rel+2)->r_info) == R_RISCV_RELAX &&
+	  bfd_getl32 (contents + ((rel+2)->r_offset)) == 0x00000013u)
+    return riscv_relax_delete_bytes (abfd, sec, (rel+2)->r_offset, 4,
+	  			       link_info, pcgp_relocs, rel+2);	
   return true;
 }
 
