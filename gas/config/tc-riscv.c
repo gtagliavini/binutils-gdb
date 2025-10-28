@@ -35,6 +35,9 @@
 
 #include <stdint.h>
 
+#define DISABLE_LWSP (1)
+#define DISABLE_SWSP (1)
+
 /* Information about an instruction, including its format, operands
    and fixups.  */
 struct riscv_cl_insn
@@ -3079,7 +3082,8 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		    continue;
 		  if (my_getSmallExpression (imm_expr, imm_reloc, asarg, p)
 		      || imm_expr->X_op != O_constant
-		      || !VALID_CITYPE_LWSP_IMM ((valueT) imm_expr->X_add_number))
+		      || !VALID_CITYPE_LWSP_IMM ((valueT) imm_expr->X_add_number)
+		      || DISABLE_LWSP)
 		    break;
 		  ip->insn_opcode |=
 		    ENCODE_CITYPE_LWSP_IMM (imm_expr->X_add_number);
@@ -3126,7 +3130,8 @@ riscv_ip (char *str, struct riscv_cl_insn *ip, expressionS *imm_expr,
 		    continue;
 		  if (my_getSmallExpression (imm_expr, imm_reloc, asarg, p)
 		      || imm_expr->X_op != O_constant
-		      || !VALID_CSSTYPE_SWSP_IMM ((valueT) imm_expr->X_add_number))
+		      || !VALID_CSSTYPE_SWSP_IMM ((valueT) imm_expr->X_add_number)
+		      || DISABLE_SWSP)
 		    break;
 		  ip->insn_opcode |=
 		    ENCODE_CSSTYPE_SWSP_IMM (imm_expr->X_add_number);

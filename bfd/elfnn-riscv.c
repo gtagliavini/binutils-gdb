@@ -38,6 +38,12 @@
 #define CHAR_BIT 8
 #endif
 
+#define SEXT(x, bits) \
+  (((x) << (8 * sizeof(x) - (bits))) >> (8 * sizeof(x) - (bits)))
+//#define VALID_CITYPE_LWGP_IMM(x) (EXTRACT_CITYPE_LWSP_IMM(ENCODE_CITYPE_LWSP_IMM(x)) == (SEXT (x, 8)))
+#define VALID_CITYPE_LWGP_IMM(x) (0)
+#define VALID_CSSTYPE_SWGP_IMM(x) (EXTRACT_CSSTYPE_SWSP_IMM(ENCODE_CSSTYPE_SWSP_IMM(x)) == (SEXT (x, 8)))
+
 /* True if dynamic relocation is needed.  If we are creating a shared library,
    and this is a reloc against a global symbol, or a non PC relative reloc
    against a local symbol, then we need to copy the reloc into the shared
@@ -2000,6 +2006,21 @@ perform_relocation (const reloc_howto_type *howto,
 
     case R_RISCV_LO12_I:
     case R_RISCV_GPREL_I:
+      {
+        /* Check if the insn has been compressed. */
+        bfd_byte *loc = contents + rel->r_offset;
+        insn_t half = bfd_get_16 (input_bfd, loc);
+        if ((half & MASK_C_LWSP) == MATCH_C_LWSP)
+          {
+            if (!VALID_CITYPE_LWGP_IMM (value))
+              return bfd_reloc_overflow;
+            half &= ~ENCODE_CITYPE_LWSP_IMM ((insn_t)-1);
+            half |= ENCODE_CITYPE_LWSP_IMM (value);
+            bfd_put_16 (input_bfd, half, loc);
+            return bfd_reloc_ok;
+          } 
+        /* fall through */
+      }
     case R_RISCV_TPREL_LO12_I:
     case R_RISCV_TPREL_I:
     case R_RISCV_PCREL_LO12_I:
@@ -2010,6 +2031,21 @@ perform_relocation (const reloc_howto_type *howto,
 
     case R_RISCV_LO12_S:
     case R_RISCV_GPREL_S:
+      {
+        /* Check if the insn has been compressed. */
+        bfd_byte *loc = contents + rel->r_offset;
+        insn_t half = bfd_get_16 (input_bfd, loc);
+        if ((half & MASK_C_SWSP) == MATCH_C_SWSP)
+          {
+            if (!VALID_CSSTYPE_SWGP_IMM (value))
+              return bfd_reloc_overflow;
+            half &= ~ENCODE_CSSTYPE_SWSP_IMM ((insn_t)-1);
+            half |= ENCODE_CSSTYPE_SWSP_IMM (value);
+            bfd_put_16 (input_bfd, half, loc);
+            return bfd_reloc_ok;
+          }
+        /* fall through */
+      }
     case R_RISCV_TPREL_LO12_S:
     case R_RISCV_TPREL_S:
     case R_RISCV_PCREL_LO12_S:
@@ -3068,7 +3104,24 @@ riscv_elf_relocate_section (bfd *output_bfd,
 		    rel->r_addend -= gp;
 		    insn |= X_GP << OP_SH_RS1;
 		  }
-		bfd_putl32 (insn, contents + rel->r_offset);
+		if (!x0_base && ((insn & MASK_LW) == MATCH_LW) &&
+		    VALID_CITYPE_LWGP_IMM (relocation + rel->r_addend - gp))
+		  {
+		    uint16_t c_insn = MATCH_C_LWSP;
+		    unsigned rd  = EXTRACT_OPERAND (RD, insn);
+                    INSERT_BITS (c_insn, rd, OP_MASK_RD, OP_SH_RD);
+                    bfd_putl16 (c_insn, contents + rel->r_offset);
+		  } 
+		else if (!x0_base && ((insn & MASK_SW) == MATCH_SW) &&
+                    VALID_CSSTYPE_SWGP_IMM (relocation + rel->r_addend - gp))
+                  {
+                    uint16_t c_insn = MATCH_C_SWSP;
+                    unsigned rs2  = EXTRACT_OPERAND (RS2, insn);
+                    INSERT_BITS (c_insn, rs2, OP_MASK_CRS2, OP_SH_CRS2);
+                    bfd_putl16 (c_insn, contents + rel->r_offset);
+                  }
+		else 
+		  bfd_putl32 (insn, contents + rel->r_offset);
 	      }
 	    else
 	      r = bfd_reloc_overflow;
@@ -5039,14 +5092,45 @@ _bfd_riscv_relax_lui (bfd *abfd,
 	  && VALID_ITYPE_IMM (symval - gp - max_alignment - reserve_size)))
     {
       unsigned sym = ELFNN_R_SYM (rel->r_info);
+      bfd_vma insn = riscv_get_insn (32, contents + rel->r_offset);
       switch (ELFNN_R_TYPE (rel->r_info))
 	{
 	case R_RISCV_LO12_I:
 	  rel->r_info = ELFNN_R_INFO (sym, R_RISCV_GPREL_I);
-	  return true;
+	  if ((insn & MASK_LW) == MATCH_LW && 
+	      (
+	       (symval >= gp
+	          && VALID_CITYPE_LWGP_IMM (symval - gp + max_alignment + reserve_size))
+               || (symval < gp
+                  && VALID_CITYPE_LWGP_IMM (symval - gp - max_alignment - reserve_size))
+	      ))
+	    {
+		    printf("qua\n");
+		    irintf("qua\n");
+	      /* The instruction can be compressed: delete the trailing bytes
+	       * reusing the following reloc (RELAX). */
+	      *again = true;
+	      return riscv_relax_delete_bytes (abfd, sec, rel->r_offset+2, 2,
+                                        link_info, pcgp_relocs, rel+1);
+	    }
+	    return true;
 
 	case R_RISCV_LO12_S:
 	  rel->r_info = ELFNN_R_INFO (sym, R_RISCV_GPREL_S);
+	  if ((insn & MASK_SW) == MATCH_SW &&
+              (
+               (symval >= gp
+                  && VALID_CSSTYPE_SWGP_IMM (symval - gp + max_alignment + reserve_size))
+               || (symval < gp
+                  && VALID_CSSTYPE_SWGP_IMM (symval - gp - max_alignment - reserve_size))
+              ))
+            {
+              /* The instruction can be compressed: delete the trailing bytes
+               * reusing the following reloc (RELAX). */
+              *again = true;
+              return riscv_relax_delete_bytes (abfd, sec, rel->r_offset+2, 2,
+                                        link_info, pcgp_relocs, rel+1);
+            }
 	  return true;
 
 	case R_RISCV_HI20:
