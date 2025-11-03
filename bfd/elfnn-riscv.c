@@ -5194,6 +5194,8 @@ clli_check:
                     if (!riscv_relax_delete_bytes (abfd, sec, record->rel->r_offset, bytes,
                                                    link_info, pcgp_relocs, record->rel))
                       return false;
+                    /* Remove the element from the hashtable. */
+                    htab_remove_elt (zclli_infos, record);
                     /* Delete the last two bytes of the padding area. */
                     if ((addi & 0x3u) == 0x3u)
                       return riscv_relax_delete_bytes (abfd, sec, (rel+1)->r_offset+2, 2,
